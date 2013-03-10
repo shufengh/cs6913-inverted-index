@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-
+#include "config.h"
 using namespace std;
 
 /*
@@ -15,17 +15,17 @@ using namespace std;
 class UrlTable{
  private:
  static UrlTable* pTable;
- static unsigned int DEFAULT_SAVE_SIZE;
+ unsigned int Default_Save_Size;
  unsigned int beginDocID; // give the saving file a name containing starting and ending docID
  unsigned int curDocCnt; // for a new doc ID
  stringstream docInfo; // url info
  UrlTable();
- bool saveTable();
  public:
  ~UrlTable();
  static UrlTable* getInstance();
  int insert(string url, string filepath, int offset); //return docID
- 
+ bool saveTable();
+
 };
 
 #endif //__URLTABLE_H__
