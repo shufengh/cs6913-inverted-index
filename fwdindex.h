@@ -25,7 +25,7 @@ class FwdIndex{
   int nameCnt;
   int curBarrelSize;
   string strchunk;
-  map<string, Record*> FwdIndexBarrel; 
+  map<string, Record> FwdIndexBarrel; 
   // [docid:32|freq:1|context:1|pos:15|context:1|pos:15...]
   
 public:

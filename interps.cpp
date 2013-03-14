@@ -20,11 +20,11 @@ void nz_op(string path);
 void nz2_op();
 int main (int argc, char * argv[])
 {
-#ifdef __DEBUG__
-  cout<<"DEBUG MODE"<<endl;
-#else
-  cout<<"RELEASE_MODE"<<endl;
-#endif
+// #ifdef __DEBUG__
+//   cout<<"DEBUG MODE"<<endl;
+// #else
+//   cout<<"RELEASE_MODE"<<endl;
+// #endif
   if(argc != 2){
     cout<<"format: interps datapath"<<endl;
     exit(1);

@@ -14,7 +14,6 @@ void FwdIndex::insertParsingRes(int docid, char *lexbuf){
   string word;
   char cch[7]; 
   int pos = 0;
-  int lastpos = 0;
   curBarrelSize += strlen(lexbuf);
   string tmp(lexbuf);
   stringstream ss(tmp);
@@ -23,46 +22,37 @@ void FwdIndex::insertParsingRes(int docid, char *lexbuf){
     if (word.size()>24){
       word = word.substr(0,24);
     }
-    map<string, Record*>::iterator itr = FwdIndexBarrel.find(word);
+    map<string, Record>::iterator itr = FwdIndexBarrel.find(word);
     if (itr == FwdIndexBarrel.end()){
       // currently deal with single context only
-      Record *rd = new Record(docid, cch[0], pos-lastpos);
-      FwdIndexBarrel[word] = rd; // insert a new node
+      //Record rd(docid, cch[0], pos-lastpos);
+      FwdIndexBarrel.insert(std::pair<string, Record>(word, Record(docid, cch[0], pos)));
     }
     else{
-      FwdIndexBarrel[word]->insert(docid, cch[0], pos-lastpos); //append
+      itr->second.insert(docid, cch[0], pos); //append
     }
   }
-  lastpos = pos;
   // cout<<curBarrelSize<<":"<<BarrelSize<<endl;
   if (curBarrelSize > BarrelSize)
     saveIntoDisk();
 }
 void FwdIndex::saveIntoDisk(){
-  map<string, Record*>::iterator itr;
+  //cout<<"enter saveIntoDisk"<<endl;
+  char name[25]="";
+  map<string, Record>::iterator itr;
   for(itr = FwdIndexBarrel.begin(); itr!=FwdIndexBarrel.end();++itr){
-    string tmp;
-    if((itr->second) != NULL)
-      tmp.append(itr->second->recordToString());
-    else continue;
-    if(tmp.size() == 0){
-      cout<<"tmp.size() == 0 ";
-      continue;
-    }
-    char name[25]="";
+       
 #ifdef __DEBUG__
     sprintf(name,"%s ",itr->first.c_str());
 #else
     sprintf(name,"%24s",itr->first.c_str());
 #endif
-    cout<<name<<":"<<itr->second->docid<<endl;
+    //cout<<name<<":"<<itr->second->docid<<":"<<FwdIndexBarrel.size()<<endl;
     strchunk.append(name);
-    strchunk.append(tmp);
+    strchunk.append(itr->second.recordToString());
     strchunk.append("\n");
 
-    delete itr->second;
-    itr->second = NULL;
-    FwdIndexBarrel.erase(itr);
+    //FwdIndexBarrel.erase(itr);
   }
   if (strchunk.size() == 0) {
     cout<< "fwdindex.cpp: strchunk.size() = 0"<<endl;
