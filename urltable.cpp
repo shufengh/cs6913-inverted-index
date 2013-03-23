@@ -44,7 +44,7 @@ UrlTable* UrlTable::getInstance(){
 }
 int UrlTable::insert(string url, string filepath, int offset){
   bool ret = true;
-  int id = curDocCnt;
+  unsigned int id = curDocCnt;
   docInfo << curDocCnt++ << " "<< url<< " "<<filepath<<" "<<offset<<"\n";
   docInfo.seekg(0, docInfo.end);
   unsigned int len = docInfo.tellg();

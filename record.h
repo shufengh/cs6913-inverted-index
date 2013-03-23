@@ -3,18 +3,19 @@
 #include "config.h"
 #include <iostream>
 using namespace std;
-//#define __DEBUG__
-class Record { //To save the freq and hits seperately, because we need to update the freq frequently in a page 
+class Record { 
+  //To save the freq and hits seperately, because we need to update the freq frequently in a page 
  public:
-  int docid; 
+  static char context[7]; // convert the context into a num
+  unsigned int docid; 
   unsigned char freq;
   string pagehits; // [context:3 | pos:13]
   string hits;  // [docid:32 | freq:8 | [pagehits]]
-  static char context[7]; // convert contexts into a num
-
+  int lastpos;
+  
   Record(int doctid, char cch, int pos);
   ~Record();
-  void insert(int newDocid,unsigned char cch, int pos);
+  void insert(unsigned int newDocid,unsigned char cch, int pos);
   static short convert(unsigned char cch);
   string recordToString();
 };

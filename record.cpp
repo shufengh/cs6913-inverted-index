@@ -4,31 +4,36 @@ char Record::context[7] = "BHIPTU";
 Record::Record(int docid, char cch, int pos){
   this->docid = docid;
   this->freq = 0;
-
+  lastpos = 0;
   insert(this->docid, cch, pos);
 }
 Record::~Record(){
   
 }
 
-void Record::insert(int newDocid, unsigned char cch, int pos){
+void Record::insert(unsigned int newDocid, unsigned char cch, int pos){
 
   if (this->docid != newDocid){
     this->recordToString();
     this->docid = newDocid;
     freq = 0;
+    lastpos = 0;
     insert(this->docid, cch, pos);
   }
   else{
-    // if a word appears 255 times in a page, I get two conclusions: the word is not important; the author is bored. 
+    // if a word appears 255 times in a page, I get two conclusions: 
+    // the word is not important; the author is bored. 
     if(freq == 255) 
       return; 
     freq = 1 + freq - '\0';
+    int tpos = pos; // to save pos as the relative position
+    pos = pos - lastpos;
     pos = pos > 8191 ? 8191:pos;  // keep pos not over 2^13-1 = 8191
 #ifdef __DEBUG__
     char str[7];
     sprintf(str," %c %d", cch, pos);
     pagehits.append(str);
+    lastpos = tpos;
 #else
     short hit = 0; //[chID:3 | pos:13] 
     char chit[3]="";
@@ -39,6 +44,7 @@ void Record::insert(int newDocid, unsigned char cch, int pos){
     chit[2] = 0;
     pagehits.append(chit);
 #endif
+
   }
 }
 short Record::convert(unsigned char cch){
