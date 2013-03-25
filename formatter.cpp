@@ -8,10 +8,9 @@
 #include <time.h>
 #include "record.h"
 using namespace std;
-typedef std::basic_ofstream<unsigned char, std::char_traits<unsigned char> > uofstream;
 
 string get_fnames(char* path);
-void format(string fname, ogzstream& gzlex, uofstream &outfmd);
+void format(string fname, ogzstream& gzlex, ofstream &outfmd);
 void convert(string record, vector<unsigned char> &listbuf);
 void pairTo2Bts(unsigned int num, unsigned char ch, vector<unsigned char>& listbuf);
 void vb_decode(vector<unsigned char> &listbuf);
@@ -28,7 +27,7 @@ int main(int argc, char** argv){
     cerr << "ERROR: Opening file '" << flex << "' failed.\n";
     exit(1);
   }
-  uofstream outfmd(flist.c_str(), ofstream::binary);
+  ofstream outfmd(flist.c_str(), ofstream::binary);
   if ( ! outfmd.good() ) {
     cerr << "ERROR: Opening file '" << outfmd << "' failed.\n";
     exit(1);
@@ -86,13 +85,13 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd){
       gzlex<<lexbuf.str()<<flush;
     }
     if(listbuf.size() > 10000000){
-      outfmd.write(listbuf.data(), listbuf.size());
+      outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size());
       listbuf.clear();
     }
   } //while(!gzin.eof()) ends
   gzin.close();
   gzlex<<lexbuf.str()<<flush;
-  outfmd.write((const char*)&listbuf[0], listbuf.size());
+  outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size());  //vector.data() returns the pointer to raw data
   listbuf.clear();
   cout<<"Finish "<<fname<<endl;
 }
