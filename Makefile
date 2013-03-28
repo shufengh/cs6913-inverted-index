@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS =  -g -Wall #-pedantic-errors #-Werror
+CFLAGS =  -O2 -g -Wall #-pedantic-errors #-Werror
 LIBS = -lz -L. -lgzstream
 
 run_formatter: formatter

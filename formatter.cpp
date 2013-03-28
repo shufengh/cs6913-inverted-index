@@ -10,11 +10,12 @@
 using namespace std;
 
 string get_fnames(char* path);
-void format(string fname, ogzstream& gzlex, ofstream &outfmd);
-void convert(string record, vector<unsigned char> &listbuf);
+void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk);
+unsigned int convert(string record, vector<unsigned char> &listbuf); // return docid
 void pairTo2Bts(unsigned int num, unsigned char ch, vector<unsigned char>& listbuf);
 void vb_decode(vector<unsigned char> &listbuf);
 void vb_encode(unsigned int docid, vector<unsigned char> &listbuf);
+
 int main(int argc, char** argv){
   if( argc != 2){
     cout<<"format: formatter indexpath"<<endl;
@@ -22,6 +23,7 @@ int main(int argc, char** argv){
   }
   string flex = string(argv[1]) + "/lexicon.gz";
   string flist = string(argv[1]) + "/i2list";
+  string chunkname = string(argv[1]) + "i2chunk";
   ogzstream gzlex(flex.c_str());
   if ( ! gzlex.good() ) {
     cerr << "ERROR: Opening file '" << flex << "' failed.\n";
@@ -32,57 +34,84 @@ int main(int argc, char** argv){
     cerr << "ERROR: Opening file '" << outfmd << "' failed.\n";
     exit(1);
   }
+  ofstream lexchunk(chunkname.c_str());
+  if ( ! lexchunk.good() ) {
+    cerr << "ERROR: Opening file '" << lexchunk << "' failed.\n";
+    exit(1);
+  }
+
   clock_t beg = clock();
   string fnames = get_fnames(argv[1]);
   stringstream ss(fnames);
   while(!ss.eof()){
     string name;
     ss>>name;
-    format(name, gzlex, outfmd);
+    format(name, gzlex, outfmd, lexchunk);
   }
   gzlex.close();
   outfmd.close();
   cout<<"Total time: "<<(double)(clock()-beg)/CLOCKS_PER_SEC<<endl;
   return 0;
 }
-void format(string fname, ogzstream& gzlex, ofstream &outfmd){
+void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk){
   igzstream gzin(fname.c_str());
   if ( ! gzin.good() ) {
     cerr << "First round ERROR: Opening file '" << fname << "' failed.\n";
     return;
   }
+
   string line, fmdbuf;
   int start = -1, end = -1;
   unsigned docCnt = 0; // how many docs in a posting
   stringstream lexbuf;
   vector<unsigned char> listbuf;
   listbuf.resize(10000000);
-  int proc = 1;
+  stringstream lexchkbuf; // save the last docid in a chunk and current size
+
+  int proc = 0; // to record the process stage
   while(!gzin.eof()){
     getline(gzin, line);
-    if( proc++ % 10000 == 0)
-      cout<<"lex size:"<<lexbuf.tellp()<<"/list size:"<<listbuf.size()<<":"<<10000000<<endl;
-    //cout<<listbuf.size()<<":"<<20000000<<endl;
-    //cout<<line.substr(0, line.find_first_of(" "));
     lexbuf<<line.substr(0, line.find_first_of(" "))<<" ";
-    unsigned startOffset = listbuf.size();
+    unsigned int startOffset = listbuf.size();
+    int startChkOffset = lexchkbuf.tellp();
+    unsigned int docid = 0;
     while(++docCnt){
+
+      if( proc++ % 100000 == 0)
+        cout<<"lex size:"<<lexbuf.tellp()<<", list size:"<<listbuf.size()<<":"<<10000000<<endl;
+      
       start = line.find_first_of("(");
       end = line.find_first_of(")");
       if( start != -1 | end != -1){
         // start+1, end-start-1 to omit '(' and ')'
-        convert(line.substr(start+1, end-start-1), listbuf);
+        docid = convert(line.substr(start+1, end-start-1), listbuf);
         line = line.substr(end+1);
         start = end = -1;
       }
       else break;
+      
+      if (docCnt % 128 == 0){
+        lexchkbuf<<docid<<" "<<listbuf.size()-startOffset<<" ";
+        //        cout<<lexchkbuf.str()<<endl;
+      }      
     } // while(++docCnt) ends
-    //cout<<":"<<docCnt<<endl;
+    // the last part chunk of the posting
+    if (docCnt % 128 != 0)
+      lexchkbuf<<docid<<" "<<listbuf.size()-startOffset<<" ";
+
     lexbuf<<docCnt<<" "; // Ft
     docCnt = 0;
-    lexbuf<<(listbuf.size()-startOffset)<<"\n"; // word offset
+    // posting offset and chunk record offset
+    lexbuf<<(listbuf.size()-startOffset)<<" ";
+    lexbuf<<((int)lexchkbuf.tellp()-startChkOffset)<<"\n"; // record the size of the current chunk
+
+    if(lexchkbuf.tellp() > 10000000){ // save the chunk info
+      lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
+      lexchkbuf.str(string());
+    } 
     if(lexbuf.tellp() > 10000000){
       gzlex<<lexbuf.str()<<flush;
+      lexbuf.str(string());
     }
     if(listbuf.size() > 10000000){
       outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size());
@@ -90,25 +119,28 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd){
     }
   } //while(!gzin.eof()) ends
   gzin.close();
+
+  lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
   gzlex<<lexbuf.str()<<flush;
-  outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size());  //vector.data() returns the pointer to raw data
+  //vector.data() returns the pointer to raw data
+  outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size()); 
   listbuf.clear();
   cout<<"Finish "<<fname<<endl;
 }
 
-void convert(string record, vector<unsigned char> &listbuf){
+unsigned int convert(string record, vector<unsigned char> &listbuf){
   //cout<<record<<endl;
   stringstream ss(record);
   // record format: [docid freq context pos context pos .. ..]
   string str; // get chars from stream first
   unsigned char ch; // freq or context
-  unsigned int num; // docid or pos 
+  unsigned int num, pos; // docid 
   
   ss>>str;
   num = atoi(str.c_str());
   if(str.size() > 1 && num == 0){
     cout<<"formatter docid converting error"<<endl;
-    return;
+    return -1;
   }
   vb_encode(num, listbuf);
   ss>>str;
@@ -119,14 +151,15 @@ void convert(string record, vector<unsigned char> &listbuf){
     ch = str[0];
     ss>>str;
 
-    num = atoi(str.c_str());
-    if(str.size() > 1 && num == 0){
-      cout<<"formatter docid converting error"<<endl;
-      return;
+    pos = atoi(str.c_str());
+    if(str.size() > 1 && pos == 0){
+      cout<<"formatter: pos converting error"<<endl;
+      return -1;
     }
 
-    pairTo2Bts(num, ch, listbuf);
+    pairTo2Bts(pos, ch, listbuf);
   }
+  return num; //return docid
 }
 void vb_encode(unsigned int docid, vector<unsigned char>&listbuf){
   unsigned char bits[6]="";
@@ -139,10 +172,9 @@ void vb_encode(unsigned int docid, vector<unsigned char>&listbuf){
   for(; i > 0; --i){
     // 0x80 set the highest bit  
     listbuf.push_back( ((short)bits[i] | 0x80)); 
-    //cout<<((short)bits[i])<<endl;
   }
   listbuf.push_back(bits[0]);
-  //cout<<((short)bits[0])<<endl;
+
 }
 void vb_decode(vector<unsigned char> &listbuf){
   unsigned int num;
@@ -161,6 +193,7 @@ void vb_decode(vector<unsigned char> &listbuf){
     }
   }
 }
+
 void pairTo2Bts(unsigned int pos, unsigned char ch, vector<unsigned char>& listbuf){
   short hit = 0;
   short chID = Record::convert(ch);
@@ -171,7 +204,8 @@ void pairTo2Bts(unsigned int pos, unsigned char ch, vector<unsigned char>& listb
 string get_fnames(char* path){
   string cmd("ls ");
   cmd.append(path);
-  // sort numerically (-n) on the third field (-k3) using 'p' as the field separator (-tp).
+  // sort numerically (-n) on the third field (-k3) using 'p' 
+  // as the field separator (-tp).
   cmd.append("/temp* | sort -k3 -tp -n"); 
   cout<<cmd<<endl;
   FILE *handle = popen(cmd.c_str(), "r");
