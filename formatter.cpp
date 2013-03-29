@@ -11,10 +11,12 @@ using namespace std;
 
 string get_fnames(char* path);
 void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk);
-unsigned int convert(string record, vector<unsigned char> &listbuf); // return docid
-void pairTo2Bts(unsigned int num, unsigned char ch, vector<unsigned char>& listbuf);
+unsigned int convert(string record, vector<unsigned char> &listbuf,
+                     unsigned int &listItr); // return docid
+void pairTo2Bts(unsigned int num, unsigned char ch, vector<unsigned char>& listbuf,
+                unsigned int &listItr);
 void vb_decode(vector<unsigned char> &listbuf);
-void vb_encode(unsigned int docid, vector<unsigned char> &listbuf);
+void vb_encode(unsigned int docid, vector<unsigned char> &listbuf, unsigned int &listItr);
 
 int main(int argc, char** argv){
   if( argc != 2){
@@ -65,44 +67,45 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
   unsigned docCnt = 0; // how many docs in a posting
   stringstream lexbuf;
   vector<unsigned char> listbuf;
-  listbuf.resize(10000000);
+  listbuf.reserve(10000000);
+  unsigned int listItr = 0;
   stringstream lexchkbuf; // save the last docid in a chunk and current size
 
   int proc = 0; // to record the process stage
   while(!gzin.eof()){
     getline(gzin, line);
     lexbuf<<line.substr(0, line.find_first_of(" "))<<" ";
-    unsigned int startOffset = listbuf.size();
+    unsigned int startOffset = listItr;
     int startChkOffset = lexchkbuf.tellp();
     unsigned int docid = 0;
     while(++docCnt){
 
       if( proc++ % 100000 == 0)
-        cout<<"lex size:"<<lexbuf.tellp()<<", list size:"<<listbuf.size()<<":"<<10000000<<endl;
+        cout<<"lex size:"<<lexbuf.tellp()<<", list size:"<<listItr<<":"<<10000000<<endl;
       
       start = line.find_first_of("(");
       end = line.find_first_of(")");
       if( start != -1 | end != -1){
         // start+1, end-start-1 to omit '(' and ')'
-        docid = convert(line.substr(start+1, end-start-1), listbuf);
+        docid = convert(line.substr(start+1, end-start-1), listbuf, listItr);
         line = line.substr(end+1);
         start = end = -1;
       }
       else break;
       
       if (docCnt % 128 == 0){
-        lexchkbuf<<docid<<" "<<listbuf.size()-startOffset<<" ";
+        lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
         //        cout<<lexchkbuf.str()<<endl;
       }      
     } // while(++docCnt) ends
     // the last part chunk of the posting
     if (docCnt % 128 != 0)
-      lexchkbuf<<docid<<" "<<listbuf.size()-startOffset<<" ";
+      lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
 
     lexbuf<<docCnt<<" "; // Ft
     docCnt = 0;
     // posting offset and chunk record offset
-    lexbuf<<(listbuf.size()-startOffset)<<" ";
+    lexbuf<<(listItr-startOffset)<<" ";
     lexbuf<<((int)lexchkbuf.tellp()-startChkOffset)<<"\n"; // record the size of the current chunk
 
     if(lexchkbuf.tellp() > 10000000){ // save the chunk info
@@ -113,9 +116,10 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
       gzlex<<lexbuf.str()<<flush;
       lexbuf.str(string());
     }
-    if(listbuf.size() > 10000000){
-      outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size());
+    if(listItr > 10000000){
+      outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listItr);
       listbuf.clear();
+      listItr = 0; 
     }
   } //while(!gzin.eof()) ends
   gzin.close();
@@ -123,12 +127,14 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
   lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
   gzlex<<lexbuf.str()<<flush;
   //vector.data() returns the pointer to raw data
-  outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listbuf.size()); 
+  outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listItr); 
   listbuf.clear();
+  listItr = 0;
   cout<<"Finish "<<fname<<endl;
 }
 
-unsigned int convert(string record, vector<unsigned char> &listbuf){
+unsigned int convert(string record, vector<unsigned char> &listbuf,
+                     unsigned int &listItr){
   //cout<<record<<endl;
   stringstream ss(record);
   // record format: [docid freq context pos context pos .. ..]
@@ -139,13 +145,13 @@ unsigned int convert(string record, vector<unsigned char> &listbuf){
   ss>>str;
   num = atoi(str.c_str());
   if(str.size() > 1 && num == 0){
-    cout<<"formatter docid converting error"<<endl;
+    cout<<"formatter: docid converting error "<<record<<endl;
     return -1;
   }
-  vb_encode(num, listbuf);
+  vb_encode(num, listbuf, listItr);
   ss>>str;
   ch = str[0];
-  listbuf.push_back(ch);
+  listbuf[listItr++] = ch;
   while(!ss.eof()){
     ss>>str;
     ch = str[0];
@@ -153,15 +159,16 @@ unsigned int convert(string record, vector<unsigned char> &listbuf){
 
     pos = atoi(str.c_str());
     if(str.size() > 1 && pos == 0){
-      cout<<"formatter: pos converting error"<<endl;
+      cout<<"formatter: pos converting error "<<str<<","<<record<<endl;
       return -1;
     }
 
-    pairTo2Bts(pos, ch, listbuf);
+    pairTo2Bts(pos, ch, listbuf, listItr);
   }
   return num; //return docid
 }
-void vb_encode(unsigned int docid, vector<unsigned char>&listbuf){
+void vb_encode(unsigned int docid, vector<unsigned char>&listbuf, 
+               unsigned int &listItr){
   unsigned char bits[6]="";
   short i = -1;
   while(docid != 0){
@@ -171,9 +178,9 @@ void vb_encode(unsigned int docid, vector<unsigned char>&listbuf){
 
   for(; i > 0; --i){
     // 0x80 set the highest bit  
-    listbuf.push_back( ((short)bits[i] | 0x80)); 
+    listbuf[listItr++] = ((short)bits[i] | 0x80); 
   }
-  listbuf.push_back(bits[0]);
+  listbuf[listItr++] = bits[0];
 
 }
 void vb_decode(vector<unsigned char> &listbuf){
@@ -194,12 +201,14 @@ void vb_decode(vector<unsigned char> &listbuf){
   }
 }
 
-void pairTo2Bts(unsigned int pos, unsigned char ch, vector<unsigned char>& listbuf){
+void pairTo2Bts(unsigned int pos, unsigned char ch, vector<unsigned char>& listbuf,
+                unsigned int &listItr){
   short hit = 0;
   short chID = Record::convert(ch);
-  hit = (chID<<13) | pos;
-  listbuf.push_back((hit>>8) & 0xff); // save the high 8 bits
-  listbuf.push_back(hit & 0xff);
+  hit = ((chID<<13) | pos);
+  //cout<<hit<<' ';
+  listbuf[listItr++] = ((hit>>8) & 0xff); // save the high 8 bits
+  listbuf[listItr++] = (hit & 0xff);
 }
 string get_fnames(char* path){
   string cmd("ls ");

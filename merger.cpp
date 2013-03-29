@@ -45,13 +45,13 @@ int main(int argc, char **argv){
   pthread_t tid;
   string fnames;
   clock_t beg = clock();
-  tmpath = string(argv[2]);
-  pthread_create(&tid, NULL, saveThread, NULL);
-  fnames = get_fnames(argv[1]);
-  default_content_size = 300000000;
-  merge_and_sort(fnames, 
-                 filecount(fnames) > 10 ? 10:filecount(fnames));
-  pthread_join(tid, NULL);
+  // tmpath = string(argv[2]);
+  // pthread_create(&tid, NULL, saveThread, NULL);
+  // fnames = get_fnames(argv[1]);
+  // default_content_size = 300000000;
+  // merge_and_sort(fnames, 
+  //                filecount(fnames) > 10 ? 10:filecount(fnames));
+  // pthread_join(tid, NULL);
 
   tmpath = string(argv[3]);
   pthread_create(&tid, NULL, saveThread, NULL);
@@ -237,7 +237,7 @@ void *saveThread(void *t){
       r = read(pipefd[0], content + readsize, atol(readlen));
       if (r == -1) {
         perror("read");
-        delete content;
+        //        delete content;
         free(content);
         exit(3);
       }
@@ -252,20 +252,21 @@ void *saveThread(void *t){
     free(content);  
     curSize += atol(readlen); 
 
-    if(curSize > default_content_size){
-      gzout.close();
-      free(filename);
-      filename = (char*)malloc(32);
-      sprintf(filename,"%s%d",fnprefix, nameCnt++);
-      gzout.open(filename);
-      if ( ! gzout.good()) {
-        std::cerr << "saveThread: Opening file `" << filename << "' failed.\n";
-        exit(3);
-      }
-      curSize = 0;
-    }    
+    // if(curSize > default_content_size){
+    //   gzout.close();
+    //   free(filename);
+    //   filename = (char*)malloc(32);
+    //   sprintf(filename,"%s%d",fnprefix, nameCnt++);
+    //   gzout.open(filename);
+    //   if ( ! gzout.good()) {
+    //     std::cerr << "saveThread: Opening file `" << filename << "' failed.\n";
+    //     exit(3);
+    //   }
+    //   curSize = 0;
+    // }
+    
   }
-  
+  gzout.close();
 }
 
 bool map_append(map<string, Node*> &frontier, string posting, int sid){
