@@ -66,8 +66,7 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
   int start = -1, end = -1;
   unsigned docCnt = 0; // how many docs in a posting
   stringstream lexbuf;
-  vector<unsigned char> listbuf;
-  listbuf.reserve(10000000);
+  vector<unsigned char> listbuf(10000000,0);
   unsigned int listItr = 0;
   stringstream lexchkbuf; // save the last docid in a chunk and current size
 
@@ -78,26 +77,27 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
     unsigned int startOffset = listItr;
     int startChkOffset = lexchkbuf.tellp();
     unsigned int docid = 0;
-    while(++docCnt){
-
+    do {
       if( proc++ % 100000 == 0)
         cout<<"lex size:"<<lexbuf.tellp()<<", list size:"<<listItr<<":"<<10000000<<endl;
       
       start = line.find_first_of("(");
       end = line.find_first_of(")");
-      if( start != -1 | end != -1){
+      if( start != -1 && end != -1){
         // start+1, end-start-1 to omit '(' and ')'
         docid = convert(line.substr(start+1, end-start-1), listbuf, listItr);
+
         line = line.substr(end+1);
         start = end = -1;
       }
       else break;
       
-      if (docCnt % 128 == 0){
+      if (docCnt > 0 && docCnt % 128 == 0){
         lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
         //        cout<<lexchkbuf.str()<<endl;
       }      
-    } // while(++docCnt) ends
+    }while(++docCnt);
+
     // the last part chunk of the posting
     if (docCnt % 128 != 0)
       lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
@@ -108,20 +108,21 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
     lexbuf<<(listItr-startOffset)<<" ";
     lexbuf<<((int)lexchkbuf.tellp()-startChkOffset)<<"\n"; // record the size of the current chunk
 
-    if(lexchkbuf.tellp() > 10000000){ // save the chunk info
+    if(lexchkbuf.tellp() > 5242880){ // save the chunk info
       lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
       lexchkbuf.str(string());
     } 
-    if(lexbuf.tellp() > 10000000){
+    if(lexbuf.tellp() > 5242880){ // 5MiB
       gzlex<<lexbuf.str()<<flush;
       lexbuf.str(string());
     }
-    if(listItr > 10000000){
+    if(listItr > 5242880){
       outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listItr);
       listbuf.clear();
       listItr = 0; 
     }
   } //while(!gzin.eof()) ends
+
   gzin.close();
 
   lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
@@ -150,8 +151,8 @@ unsigned int convert(string record, vector<unsigned char> &listbuf,
   }
   vb_encode(num, listbuf, listItr);
   ss>>str;
-  ch = str[0];
-  listbuf[listItr++] = ch;
+  //ch = str[0];
+  listbuf[listItr++] = atoi(str.c_str());
   while(!ss.eof()){
     ss>>str;
     ch = str[0];
