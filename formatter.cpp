@@ -108,18 +108,26 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
     lexbuf<<(listItr-startOffset)<<" ";
     lexbuf<<((int)lexchkbuf.tellp()-startChkOffset)<<"\n"; // record the size of the current chunk
 
-    if(lexchkbuf.tellp() > 5242880){ // save the chunk info
-      lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
-      lexchkbuf.str(string());
-    } 
-    if(lexbuf.tellp() > 5242880){ // 5MiB
-      gzlex<<lexbuf.str()<<flush;
-      lexbuf.str(string());
-    }
+    // if(lexchkbuf.tellp() > 5242880){ // save the chunk info
+    //   lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
+    //   lexchkbuf.str(string());
+
+    // } 
+    // if(lexbuf.tellp() > 5242880){ // 5MiB
+    //   gzlex<<lexbuf.str()<<flush;
+    //   lexbuf.str(string());
+    // }
+
     if(listItr > 5242880){
       outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listItr);
       listbuf.clear();
       listItr = 0; 
+      // save at the same time to ensure no data loss
+      lexchunk.write(lexchkbuf.str().c_str(), (int)lexchkbuf.tellp());
+      lexchkbuf.str(string());
+
+      gzlex<<lexbuf.str()<<flush;
+      lexbuf.str(string());
     }
   } //while(!gzin.eof()) ends
 
@@ -163,8 +171,9 @@ unsigned int convert(string record, vector<unsigned char> &listbuf,
       cout<<"formatter: pos converting error "<<str<<","<<record<<endl;
       return -1;
     }
-
-    pairTo2Bts(pos, ch, listbuf, listItr);
+    // a test to see if vbytes is better than the byte alignment
+    pairTo2Bts(pos, ch, listbuf, listItr); 
+    //vb_encode(Record::convert(ch)<<13 + pos, listbuf, listItr);
   }
   return num; //return docid
 }
