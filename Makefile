@@ -2,6 +2,13 @@ CC = g++
 CFLAGS =  -O2 -g -Wall #-pedantic-errors #-Werror
 LIBS = -lz -L. -lgzstream
 
+
+run_interps: interps
+	./interps nz2_merged
+interps: interps.cpp parserra.* urltable.* fwdindex.* record.* config.h
+	rm -rf urltable/* fwdbarrel/*
+	$(CC) $(CFLAGS) $(LIBS) -o interps $^ 
+
 run_formatter: formatter
 	rm -rf destpath/i2list destpath/lexicon.gz
 	./formatter destpath 
@@ -13,12 +20,6 @@ run_merger: merger
 	./merger srcpath tmpath destpath
 merger: merger.cpp 
 	$(CC) $(CFLAGS) $(LIBS) -o merger $^
-
-run_interps: interps
-	./interps NZ/data
-interps: interps.cpp parserra.* urltable.* fwdindex.* record.* config.h
-	rm -rf urltable/* fwdbarrel/*
-	$(CC) $(CFLAGS) $(LIBS) -o interps $^ 
 
 clean:
 	rm -rf urltable/* fwdbarrel/*

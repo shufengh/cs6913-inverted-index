@@ -2,7 +2,7 @@
 
 FwdIndex::FwdIndex(){
   curBarrelSize = 0;
-  BarrelSize = BARREL_SIZE; 
+  BarrelSize = BARREL_SIZE;
   strcpy(savePrefix,"fwdbarrel/temp");
   nameCnt = 0;
 }
@@ -19,8 +19,8 @@ void FwdIndex::insertParsingRes(int docid, char *lexbuf){
   stringstream ss(tmp);
   while(!ss.eof()){
     ss>>word>>cch>>pos;
-    if (word.size()>24){
-      word = word.substr(0,24);
+    if(word.size() > 24){
+      word = word.substr(0, 24);
     }
     map<string, Record>::iterator itr = FwdIndexBarrel.find(word);
     if (itr == FwdIndexBarrel.end()){
@@ -32,49 +32,40 @@ void FwdIndex::insertParsingRes(int docid, char *lexbuf){
       itr->second.insert(docid, cch[0], pos); //append
     }
   }
-  // cout<<curBarrelSize<<":"<<BarrelSize<<endl;
+  //cout<<curBarrelSize<<":"<<BarrelSize<<endl;
   if (curBarrelSize > BarrelSize)
     saveIntoDisk();
 }
 void FwdIndex::saveIntoDisk(){
-  //cout<<"enter saveIntoDisk"<<endl;
-  char name[25]="";
+  cout<<endl<<"saveIntoDisk"<<endl;
+  if(FwdIndexBarrel.size() == 0){
+    cout<<endl<<"FwdIndexBarrel empty"<<endl;
+    return;
+  }
+  //char name[25]="";
   map<string, Record>::iterator itr;
   for(itr = FwdIndexBarrel.begin(); itr!=FwdIndexBarrel.end();++itr){
-       
-#ifdef __DEBUG__
-    sprintf(name,"%s ",itr->first.c_str());
-#else
-    sprintf(name,"%24s",itr->first.c_str());
-#endif
-    //cout<<name<<":"<<itr->second->docid<<":"<<FwdIndexBarrel.size()<<endl;
-    strchunk.append(name);
+    //    sprintf(name,"%s ",itr->first.c_str());
+    strchunk.append(itr->first);
     strchunk.append(itr->second.recordToString());
     strchunk.append("\n");
-
-    //FwdIndexBarrel.erase(itr);
   }
-  if (strchunk.size() == 0) {
-    cout<< "fwdindex.cpp: strchunk.size() = 0"<<endl;
-    return; 
-  }
-
+  
   char fname[20];
   sprintf(fname,"%s%d", savePrefix, nameCnt);
   ++nameCnt;
   gzFile *fi = (void **)gzopen(fname, "wb");
   if (!fi) {
-    fprintf (stderr, "gzopen of '%s' failed: %s.\n", fname,
-             strerror (errno));
+    cerr<<"fwdindex.cpp: gzopen of "<<fname<<" failed: "<<strerror(errno);
     return;
   }
-  
-  // cout<<"strchunk:"<<strchunk<<endl;
   int r = gzwrite(fi, strchunk.c_str(), strchunk.size());
   if(r < (signed)strchunk.size()){
     cerr<<"fwdindex.cpp: gzwrite of "<<fname<<" failed:"<<strerror(errno)<<endl;
   }
   gzclose(fi);
+
+  FwdIndexBarrel.clear();
   strchunk.clear();
   curBarrelSize = 0;
 }

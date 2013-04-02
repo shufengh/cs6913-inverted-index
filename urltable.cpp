@@ -15,7 +15,7 @@ bool UrlTable::saveTable(){
   char filename[66]="";
   sprintf(filename,"urltable/%d-%d",beginDocID, curDocCnt-1);
  
-  cout<<"enter saveTable"<<endl;
+  cout<<endl<<"enter saveTable"<<endl;
 
   FILE *outfile = fopen(filename,"w");
   if(!outfile){

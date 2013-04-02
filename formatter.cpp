@@ -33,25 +33,32 @@ int main(int argc, char** argv){
   }
   ofstream outfmd(flist.c_str(), ofstream::binary);
   if ( ! outfmd.good() ) {
-    cerr << "ERROR: Opening file '" << outfmd << "' failed.\n";
+    cerr << "ERROR: Opening file '" << flist << "' failed.\n";
     exit(1);
   }
   ofstream lexchunk(chunkname.c_str());
   if ( ! lexchunk.good() ) {
-    cerr << "ERROR: Opening file '" << lexchunk << "' failed.\n";
+    cerr << "ERROR: Opening file '" << chunkname << "' failed.\n";
     exit(1);
   }
 
   clock_t beg = clock();
+
   string fnames = get_fnames(argv[1]);
   stringstream ss(fnames);
   while(!ss.eof()){
     string name;
     ss>>name;
-    format(name, gzlex, outfmd, lexchunk);
+    cout<<"Enter "<<name<<endl;
+    clock_t s = clock();
+    if (!name.empty())
+      format(name, gzlex, outfmd, lexchunk);
+    cout<<"Exit "<<name<<" time usage: "<<(double)(clock()-s)/CLOCKS_PER_SEC<<endl;
   }
+  
   gzlex.close();
   outfmd.close();
+  lexchunk.close();
   cout<<"Total time: "<<(double)(clock()-beg)/CLOCKS_PER_SEC<<endl;
   return 0;
 }
@@ -70,24 +77,28 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
   unsigned int listItr = 0;
   stringstream lexchkbuf; // save the last docid in a chunk and current size
 
-  int proc = 0; // to record the process stage
+  long long proc = 0; // to record the process stage
   while(!gzin.eof()){
     getline(gzin, line);
+    string word = line.substr(0, line.find_first_of(" "));
     lexbuf<<line.substr(0, line.find_first_of(" "))<<" ";
     unsigned int startOffset = listItr;
     int startChkOffset = lexchkbuf.tellp();
     unsigned int docid = 0;
+    unsigned int nextStart = 0; 
     do {
-      if( proc++ % 100000 == 0)
-        cout<<"lex size:"<<lexbuf.tellp()<<", list size:"<<listItr<<":"<<10000000<<endl;
+
+      // if( proc++ % 100000 == 0)
+      //   cout<<proc<<" lex size:"<<lexbuf.tellp()<<", list size:"<<listItr<<":"<<10000000<<endl;
       
-      start = line.find_first_of("(");
-      end = line.find_first_of(")");
+      start = line.find_first_of("(", nextStart);
+      end = line.find_first_of(")", start);
       if( start != -1 && end != -1){
         // start+1, end-start-1 to omit '(' and ')'
         docid = convert(line.substr(start+1, end-start-1), listbuf, listItr);
 
-        line = line.substr(end+1);
+        //        line = line.substr(end+1);
+        nextStart = end + 1;
         start = end = -1;
       }
       else break;
@@ -101,7 +112,8 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
     // the last part chunk of the posting
     if (docCnt % 128 != 0)
       lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
-
+    if (proc == 100000)
+      cout<<proc++<<" "<<word<<" "<<docCnt<<endl;
     lexbuf<<docCnt<<" "; // Ft
     docCnt = 0;
     // posting offset and chunk record offset
@@ -139,7 +151,6 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
   outfmd.write(reinterpret_cast<const char*>(listbuf.data()), listItr); 
   listbuf.clear();
   listItr = 0;
-  cout<<"Finish "<<fname<<endl;
 }
 
 unsigned int convert(string record, vector<unsigned char> &listbuf,
