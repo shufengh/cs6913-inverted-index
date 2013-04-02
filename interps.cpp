@@ -9,8 +9,6 @@
 #include "fwdindex.h"
 using namespace std;
 
-#define INDEX_CHUNK 1048576 //409600 //400KiB
-
 char *memAlloc(gzFile *, int, bool readAll); 
 void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink);
 void nz_op(char* path);
@@ -32,7 +30,7 @@ string get_fnames(char* path){
 
   // sort numerically (-n) on the third field (-k3) using 'p' 
   // as the field separator (-tp).
-  cmd.append("/*_* | sort -k2 -t/ -n");
+  cmd.append("/*_* | sort -k3 -t/ -n");
   FILE *handle = popen(cmd.c_str(), "r");
   if(handle == NULL){
     cerr<<"popen error"<<endl;
@@ -52,12 +50,19 @@ void nz_op(char *path){
   string errlink;
   stringstream ns(get_fnames(path));
   string data, index;
+  bool next = false; // flag to read frome the last failure point
 
   while(!ns.eof()){
     ns>>data;
     if(data.find("data") == string::npos || ns.eof()) continue;
     ns>>index;
     if(index.find("index") == string::npos) continue;
+
+    if(next == false){
+      if(index != START_INDEX) continue;
+      else next = true;
+    }
+
     cout<<"visiting "<<index;
     clock_t beg = clock();
     event(const_cast<char*>(index.c_str()), const_cast<char*>(data.c_str()), 
@@ -68,7 +73,7 @@ void nz_op(char *path){
   ofstream errlk("errlink");
   errlk<<errlink;
   errlk.close();
-  UrlTable::getInstance()->saveTable();
+  //  UrlTable::getInstance()->saveTable();
 
 
 }
@@ -90,15 +95,14 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
     return;
   }
 
-  indexBuffer = memAlloc(cIndex, INDEX_CHUNK, true);
+  indexBuffer = memAlloc(cIndex, READ_CHUNK, true);
   if (indexBuffer == NULL){
-    
     errlink.append("indexbuffer allocate error\n");
     gzclose(cIndex);
     gzclose(cData);
     return;
   }
-
+  
   string url;
   int offset = 0;
   string trash;
@@ -106,16 +110,12 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
   string pLine; 
   
   while (!ssindex.eof()){
-
     getline(ssindex, pLine);
     stringstream ss(pLine);
     for(int i = 0; i < 4; ++i){
-      if(i == 0)
-        ss >> url;
-      else if (i == 3)
-        ss >> offset;
-      else 
-        ss >> trash;
+      if(i == 0) ss >> url;
+      else if (i == 3) ss >> offset;
+      else ss >> trash;
     }
 
     int docID = UrlTable::getInstance()->insert(url, dataFName, offset);
@@ -123,10 +123,8 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
       cerr<<"urltable insert error"<<endl;
       break;
     }
-
     char *pageBuf = memAlloc(cData, offset, false);
-
-    if (pageBuf != NULL){
+    if(pageBuf != NULL){
         char *lexbuf = (char*)malloc(2*offset + 1);
         int ret = parser(const_cast<char*>(url.c_str()),
                          pageBuf, lexbuf, 2*offset + 1, offset);
@@ -137,7 +135,6 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
           else
             errlink.append(url+" parse error\n");
         }
-        
         free(pageBuf);
         free(lexbuf);
         pageBuf = lexbuf = NULL;

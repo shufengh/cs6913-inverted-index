@@ -29,21 +29,21 @@ void Record::insert(unsigned int newDocid, unsigned char cch, int pos){
     int tpos = pos; // to save pos as the relative position
     pos = pos - lastpos;
     pos = pos > 8191 ? 8191:pos;  // keep pos not over 2^13-1 = 8191
-#ifdef __DEBUG__
+
     char str[7];
     sprintf(str," %c %d", cch, pos);
     pagehits.append(str);
     lastpos = tpos;
-#else
-    short hit = 0; //[chID:3 | pos:13] 
-    char chit[3]="";
-    short chID = convert(cch);
-    hit = (chID<<13) | pos;
-    chit[0] = (hit>>8) & ~(~0<<8); // save the high 8 bits
-    chit[1] = hit & ~(~0<<8);
-    chit[2] = 0;
-    pagehits.append(chit);
-#endif
+// #else
+//     short hit = 0; //[chID:3 | pos:13] 
+//     char chit[3]="";
+//     short chID = convert(cch);
+//     hit = (chID<<13) | pos;
+//     chit[0] = (hit>>8) & ~(~0<<8); // save the high 8 bits
+//     chit[1] = hit & ~(~0<<8);
+//     chit[2] = 0;
+//     pagehits.append(chit);
+// #endif
 
   }
 }
@@ -64,7 +64,7 @@ short Record::convert(unsigned char cch){
 string Record::recordToString(){
   //TODO splice the record properties into a string and merge pagehits into hits
 
-#ifdef __DEBUG__
+  //#ifdef __DEBUG__
   char num[20];
   sprintf(num,"(%d %d ",this->docid,(int)freq);
   //cout<<"-"<<hits<<":"<<hits.size();
@@ -73,19 +73,19 @@ string Record::recordToString(){
   hits.append(")");
   pagehits.clear();
   
-#else
-  char num[6];
-  num[0] = (((char)((docid & 0xff000000)>>24)));
-  num[1] = (((char)((docid & 0x00ff0000)>>16)));
-  num[2] = (((char)((docid & 0x0000ff00)>>8)));
-  num[3] = (((char)((docid & 0x000000ff))));
-  num[4] = freq;
-  num[5] = '\0';
+// #else
+//   char num[6];
+//   num[0] = (((char)((docid & 0xff000000)>>24)));
+//   num[1] = (((char)((docid & 0x00ff0000)>>16)));
+//   num[2] = (((char)((docid & 0x0000ff00)>>8)));
+//   num[3] = (((char)((docid & 0x000000ff))));
+//   num[4] = freq;
+//   num[5] = '\0';
 
-  hits.append(num);
-  hits.append(pagehits);
-  pagehits.clear();
-#endif
+//   hits.append(num);
+//   hits.append(pagehits);
+//   pagehits.clear();
+// #endif
 
   return hits;
 }

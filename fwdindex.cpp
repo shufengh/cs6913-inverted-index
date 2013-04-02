@@ -4,13 +4,15 @@ FwdIndex::FwdIndex(){
   curBarrelSize = 0;
   BarrelSize = BARREL_SIZE;
   strcpy(savePrefix,"fwdbarrel/temp");
-  nameCnt = 0;
+  nameCnt = START_TEMP_NUM;
 }
 FwdIndex::~FwdIndex(){
   // save what's still in the barrel and say bye
   saveIntoDisk();
 }
 void FwdIndex::insertParsingRes(int docid, char *lexbuf){
+    // if ( docid == 277)
+    //    cout<<lexbuf<<" ";
   string word;
   char cch[7]; 
   int pos = 0;
@@ -68,4 +70,8 @@ void FwdIndex::saveIntoDisk(){
   FwdIndexBarrel.clear();
   strchunk.clear();
   curBarrelSize = 0;
+  
+  UrlTable::getInstance()->saveTable(); // keep saving urltable and temp the same step to recover easily
+    
+
 }

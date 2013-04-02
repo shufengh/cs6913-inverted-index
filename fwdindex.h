@@ -10,9 +10,10 @@
 #include <errno.h>
 #include "config.h"
 #include "record.h"
+#include "urltable.h"
 using namespace std;
 
-// #define __DEBUG__
+
 /* This class is to create the forward indexes for following merging op. 
    Since most of the ops are merging same words' contexts and position,
    I use the map with words as keys and two bytes saving the context and position. */

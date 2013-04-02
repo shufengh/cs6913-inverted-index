@@ -4,9 +4,9 @@
 #include <cerrno>
 UrlTable* UrlTable::pTable = NULL;
 UrlTable::UrlTable(){
-  beginDocID = 0;
-  curDocCnt = 0;
-  Default_Save_Size = DEFAULT_SAVE_SIZE; // 8 MiB
+  beginDocID = START_DOCID;
+  curDocCnt = START_DOCID;
+  Default_Save_Size = DEFAULT_SAVE_SIZE; 
 }
 UrlTable::~UrlTable(){
   this->saveTable();
@@ -15,7 +15,7 @@ bool UrlTable::saveTable(){
   char filename[66]="";
   sprintf(filename,"urltable/%d-%d",beginDocID, curDocCnt-1);
  
-  cout<<endl<<"enter saveTable"<<endl;
+  cout<<"saveTable"<<endl;
 
   FILE *outfile = fopen(filename,"w");
   if(!outfile){
@@ -43,16 +43,19 @@ UrlTable* UrlTable::getInstance(){
   return pTable;
 }
 int UrlTable::insert(string url, string filepath, int offset){
-  bool ret = true;
-  unsigned int id = curDocCnt;
+  //  bool ret = true;
+  //unsigned int id = curDocCnt;
   docInfo << curDocCnt++ << " "<< url<< " "<<filepath<<" "<<offset<<"\n";
-  docInfo.seekg(0, docInfo.end);
-  unsigned int len = docInfo.tellg();
-  docInfo.seekg(0, docInfo.beg);
-  if (len >= Default_Save_Size){
-    ret = this->saveTable();
-  }
-  if(ret == true)
-    return id;
-  return -1;
+  return curDocCnt-1;
+
+  // modify to save the urltable when the barrel saving happens
+  //  docInfo.seekg(0, docInfo.end);
+  // unsigned int len = docInfo.tellg();
+  // docInfo.seekg(0, docInfo.beg);
+  // if (len >= Default_Save_Size){
+  //   ret = this->saveTable();
+  // }
+  // if(ret == true)
+  //   return id;
+  // return -1;
 }

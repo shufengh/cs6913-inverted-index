@@ -1,10 +1,10 @@
 CC = g++
-CFLAGS =  -O2 -g -Wall #-pedantic-errors #-Werror
+CFLAGS = -g -Wall #-pedantic-errors #-Werror
 LIBS = -lz -L. -lgzstream
 
 
 run_interps: interps
-	./interps nz2_merged
+	./interps NZ/data
 interps: interps.cpp parserra.* urltable.* fwdindex.* record.* config.h
 	rm -rf urltable/* fwdbarrel/*
 	$(CC) $(CFLAGS) $(LIBS) -o interps $^ 
