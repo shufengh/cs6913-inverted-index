@@ -1,12 +1,18 @@
 CC = g++
-CFLAGS = -g -Wall #-pedantic-errors #-Werror
+CFLAGS = -O2 -g -Wall #-pedantic-errors #-Werror
 LIBS = -lz -L. -lgzstream
 
+#all:
+#	echo ' what to run'
+
+run_merger: merger
+	./merger srcpath tmpath destpath
+merger: merger.cpp 
+	$(CC) $(CFLAGS) $(LIBS) -o merger $^
 
 run_interps: interps
-	./interps NZ/data
+	./interps nz2_merged
 interps: interps.cpp parserra.* urltable.* fwdindex.* record.* config.h
-	rm -rf urltable/* fwdbarrel/*
 	$(CC) $(CFLAGS) $(LIBS) -o interps $^ 
 
 run_formatter: formatter
@@ -15,13 +21,9 @@ run_formatter: formatter
 formatter: formatter.cpp record.*
 	$(CC) $(CFLAGS) $(LIBS) -o formatter $^
 
-run_merger: merger
-	rm -rf tmpath/temp* destpath/temp*
-	./merger srcpath tmpath destpath
-merger: merger.cpp 
-	$(CC) $(CFLAGS) $(LIBS) -o merger $^
 
 clean:
-	rm -rf urltable/* fwdbarrel/*
 	rm -f interps merger formatter 
 	rm -rf gmon.out *.dSYM
+cleanb:
+	rm -rf urltable/* fwdbarrel/*

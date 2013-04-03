@@ -16,8 +16,6 @@ void Record::insert(unsigned int newDocid, unsigned char cch, int pos){
   if (this->docid != newDocid){
     this->recordToString();
     this->docid = newDocid;
-    freq = 0;
-    lastpos = 0;
     insert(this->docid, cch, pos);
   }
   else{
@@ -30,7 +28,7 @@ void Record::insert(unsigned int newDocid, unsigned char cch, int pos){
     pos = pos - lastpos;
     pos = pos > 8191 ? 8191:pos;  // keep pos not over 2^13-1 = 8191
 
-    char str[7];
+    char str[8];
     sprintf(str," %c %d", cch, pos);
     pagehits.append(str);
     lastpos = tpos;
@@ -62,30 +60,16 @@ short Record::convert(unsigned char cch){
   return chID;
 }
 string Record::recordToString(){
-  //TODO splice the record properties into a string and merge pagehits into hits
+  //splice the record properties into a string and merge pagehits into hits
 
-  //#ifdef __DEBUG__
   char num[20];
-  sprintf(num,"(%d %d ",this->docid,(int)freq);
-  //cout<<"-"<<hits<<":"<<hits.size();
+  sprintf(num," (%d %d ",this->docid,(int)freq);
   hits.append(num);
   hits.append(pagehits);
   hits.append(")");
+
   pagehits.clear();
-  
-// #else
-//   char num[6];
-//   num[0] = (((char)((docid & 0xff000000)>>24)));
-//   num[1] = (((char)((docid & 0x00ff0000)>>16)));
-//   num[2] = (((char)((docid & 0x0000ff00)>>8)));
-//   num[3] = (((char)((docid & 0x000000ff))));
-//   num[4] = freq;
-//   num[5] = '\0';
-
-//   hits.append(num);
-//   hits.append(pagehits);
-//   pagehits.clear();
-// #endif
-
+  freq = 0;
+  lastpos = 0;
   return hits;
 }

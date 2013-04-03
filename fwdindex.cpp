@@ -19,8 +19,8 @@ void FwdIndex::insertParsingRes(int docid, char *lexbuf){
   curBarrelSize += strlen(lexbuf);
   string tmp(lexbuf);
   stringstream ss(tmp);
-  while(!ss.eof()){
-    ss>>word>>cch>>pos;
+  while(ss>>word>>cch>>pos){
+    //  ss>>word>>cch>>pos;
     if(word.size() > 24){
       word = word.substr(0, 24);
     }

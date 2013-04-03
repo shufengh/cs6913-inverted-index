@@ -7,31 +7,60 @@
 #include <cerrno>
 #include <pthread.h>
 #include <ctime>
+#include <queue>
 using namespace std;
 /*
-  This merger procedure is divided into two steps: it'll first splice the same posting
-  and then merge lists within 2 passes.
+  This merger procedure is divided into two steps: it'll first 
+  splice the same posting and then merge lists within 2 passes.
 */
+class PostingComparator{
+public:
+  bool operator() (const string& lhs, const string &rhs) const{
+    int ls = lhs.find_first_of("(");
+    int le = lhs.find_first_of(" ", ls + 1); //( docid freq .. .. or ls = -1
+    string ldid, rdid;
+    if( ls != -1 && le != -1) ldid = lhs.substr(ls, le);
+    
+    int rs = rhs.find_first_of("(");
+    int re = rhs.find_first_of(" ", re + 1);
+    if( re != -1 && rs != -1) rdid = rhs.substr(rs, re);
+
+    return atoi(ldid.c_str()) < atoi(rdid.c_str());    
+  }
+};
 class Node{
 public:
   int sid;// sid =igzstream id
-  string posting;
+  //  posting is order by the docid, since the first file's docid is less than the second
+  priority_queue<string, vector<string>, PostingComparator> posting;
+  //let map_append test if it's a valid posting
   Node(int sid, string p){
     this->sid = sid;
-    posting = p;
+    posting.push(p);
   }
   void append(string leftps){
-    posting.append(leftps);
+    posting.push(leftps);
+  }
+  string to_string(){
+    string wholePostings;
+    while(!posting.empty()){
+      wholePostings.append(posting.top());
+      posting.pop();
+    }
+    return wholePostings;
   }
 };
-bool map_append(map<string, Node*> &frontier, string posting, int sid); 
+
+bool map_append(map<string, Node> &frontier, string posting, int sid); 
 void merge_and_sort(string fnames, unsigned int filecnt);
 string get_fnames(char* path);
 unsigned int filecount(string fnames);
 void *saveThread(void *t);
+
 string tmpath;
 int pipefd[2];
 long default_content_size =  100000000; // about 100 MiB
+
 int main(int argc, char **argv){
   if(argc != 4){
     cout<<"format: merger srcpath tmpath destpath"<<endl;
@@ -45,24 +74,33 @@ int main(int argc, char **argv){
   pthread_t tid;
   string fnames;
   clock_t beg = clock();
-  // tmpath = string(argv[2]);
-  // pthread_create(&tid, NULL, saveThread, NULL);
-  // fnames = get_fnames(argv[1]);
-  // default_content_size = 300000000;
-  // merge_and_sort(fnames, 
-  //                filecount(fnames) > 10 ? 10:filecount(fnames));
-  // pthread_join(tid, NULL);
+
+  tmpath = string(argv[2]);
+  pthread_create(&tid, NULL, saveThread, NULL);
+  fnames = get_fnames(argv[1]);
+  if(fnames.empty()){
+    cerr<<argv[1]<<" empty"<<endl;
+    exit(1);
+  }
+  default_content_size = 524288000;
+  merge_and_sort(fnames, 
+                 filecount(fnames) > 10 ? 10:filecount(fnames));
+  pthread_join(tid, NULL);
 
   tmpath = string(argv[3]);
   pthread_create(&tid, NULL, saveThread, NULL);
   fnames = get_fnames(argv[2]);
-  default_content_size = 300000000;
+  if(fnames.empty()){
+    cerr<<argv[2]<<" empty"<<endl;
+    exit(1);
+  }
+  default_content_size = 21474836480; // 20G. Ensure they are saved in one file
   merge_and_sort(fnames, filecount(fnames));
   pthread_join(tid, NULL);
 
-  clock_t end = clock();
-  cout<<"Total time: "<<(double)(end-beg)/CLOCKS_PER_SEC<<endl;
+  cout<<"Total time: "<<(double)(clock() - beg)/CLOCKS_PER_SEC<<endl;
   return 0;
+
 }
 unsigned int filecount(string fnames){
   string found;
@@ -98,15 +136,16 @@ void merge_and_sort(string fnames, unsigned int bufnum){
 
   igzstream gzin[bufnum];
   stringstream ns(fnames);
-  map<string, Node*> frontier; 
+  map<string, Node > frontier; 
   string pipeStr; // save merged first 20MiB postings
   string fname, posting;
   for(unsigned i = 0; i< bufnum; ++i){
     ns>>fname;
+    if(fname.empty()) continue;
     gzin[i].open(fname.c_str());
     if ( ! gzin[i].good()) {
       std::cerr << "ERROR: Opening file '" << fname << "' failed.\n";
-      break;
+      continue; // skip bad files
     }   
   }
   
@@ -140,13 +179,13 @@ void merge_and_sort(string fnames, unsigned int bufnum){
       break;
     }
     // remove the smallest posting from the map
-    map<string,Node*>::iterator itr = frontier.begin();
-    pipeStr += itr->first + " " + itr->second->posting + "\n";
-    int sid = itr->second->sid;
-    delete itr->second;
+    map<string, Node>::iterator itr = frontier.begin();
+    pipeStr += itr->first + " " + itr->second.to_string() + "\n";
+    int sid = itr->second.sid;
     frontier.erase(itr);
     //cout<<"pipeStr:"<<pipeStr<<endl;
-    // insert the first unique posting into the map from the stream where the removed one's from
+    // insert the first unique posting into the map from
+    // the stream where the removed one's from
     bool r = false;
     do{
       if(gzin[sid].eof()){
@@ -167,7 +206,8 @@ void merge_and_sort(string fnames, unsigned int bufnum){
 
         gzin[sid].open(fname.c_str());
         if (!gzin[sid].good()) {
-          std::cerr << "Second ERROR: Opening file '" << fname << "' failed. "<<strerror(errno)<<"\n";
+          cerr << "Second ERROR: Opening file '"<< fname;
+               cerr<< "' failed. "<<strerror(errno)<<endl;
           gzin[sid].clear();
           continue;
         }
@@ -185,7 +225,7 @@ void merge_and_sort(string fnames, unsigned int bufnum){
         cout<<"write size: "<<strerror(errno)<<endl;
         exit(3);
       }
-      if( write(pipefd[1], pipeStr.c_str(), pipeStr.size()) < pipeStr.size() ){
+      if( write(pipefd[1], pipeStr.c_str(), pipeStr.size()) < (int)pipeStr.size() ){
         cout<<"write pipeStr: "<<strerror(errno)<<endl;
         exit(3);
       }
@@ -206,7 +246,7 @@ void *saveThread(void *t){
   
   sprintf(fnprefix,"%s/temp", tmpath.c_str());
   char *filename = (char*) malloc(32);
-  sprintf(filename,"%s%d",fnprefix,nameCnt++);
+  sprintf(filename,"%s%d",fnprefix, nameCnt++);
   
   ogzstream gzout;
   gzout.open(filename);
@@ -252,24 +292,25 @@ void *saveThread(void *t){
     free(content);  
     curSize += atol(readlen); 
 
-    // if(curSize > default_content_size){
-    //   gzout.close();
-    //   free(filename);
-    //   filename = (char*)malloc(32);
-    //   sprintf(filename,"%s%d",fnprefix, nameCnt++);
-    //   gzout.open(filename);
-    //   if ( ! gzout.good()) {
-    //     std::cerr << "saveThread: Opening file `" << filename << "' failed.\n";
-    //     exit(3);
-    //   }
-    //   curSize = 0;
-    // }
+    if(curSize > default_content_size){
+      gzout.close();
+      free(filename);
+      filename = (char*)malloc(32);
+      sprintf(filename,"%s%d",fnprefix, nameCnt++);
+      gzout.open(filename);
+      if ( ! gzout.good()) {
+        std::cerr << "saveThread: Opening file `" << filename << "' failed.\n";
+        exit(3);
+      }
+      curSize = 0;
+    }
     
   }
   gzout.close();
+  return NULL;
 }
 
-bool map_append(map<string, Node*> &frontier, string posting, int sid){
+bool map_append(map<string, Node> &frontier, string posting, int sid){
   // split the new posting and if the posting exists, merge them, or insert it into the map.
   int split = posting.find_first_of(" ");
   //cout<<"map_append:"<<posting<<endl;
@@ -278,15 +319,13 @@ bool map_append(map<string, Node*> &frontier, string posting, int sid){
     return false;
   }
   string word  = posting.substr(0, split);
-  string leftps = posting.substr(split+1);
-  map<string,Node*>::iterator itr = frontier.find(word);
+  string leftps = posting.substr(split+1); // check if it's valid
+  map<string, Node>::iterator itr = frontier.find(word);
   if(itr == frontier.end()){
-    Node *rd = new Node(sid, leftps);
-    frontier[word] = rd;
-  }
-  else{
-    frontier[word]->append(leftps);
-    return false; // merge action and we should get next line of the stream.
+    frontier.insert(pair<string, Node>(word, Node(sid, leftps)));
+  } else{
+    itr->second.append(leftps);
+    return false;  // merge action and we should get next line of the stream.
   }  
   return true; // insertion action
 }
