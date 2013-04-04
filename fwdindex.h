@@ -32,7 +32,7 @@ class FwdIndex{
 public:
   FwdIndex();
   ~FwdIndex();
-  void insertParsingRes(int docid, char *lexbuf);
+  unsigned insertParsingRes(int docid, char *lexbuf);
   void saveIntoDisk();
 
 };

@@ -87,17 +87,11 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
     unsigned int docid = 0;
     unsigned int nextStart = 0; 
     do {
-
-      // if( proc++ % 100000 == 0)
-      //   cout<<proc<<" lex size:"<<lexbuf.tellp()<<", list size:"<<listItr<<":"<<10000000<<endl;
-      
       start = line.find_first_of("(", nextStart);
       end = line.find_first_of(")", start);
       if( start != -1 && end != -1){
         // start+1, end-start-1 to omit '(' and ')'
         docid = convert(line.substr(start+1, end-start-1), listbuf, listItr);
-
-        //        line = line.substr(end+1);
         nextStart = end + 1;
         start = end = -1;
       }
@@ -105,15 +99,13 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
       
       if (docCnt > 0 && docCnt % 128 == 0){
         lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
-        //        cout<<lexchkbuf.str()<<endl;
       }      
     }while(++docCnt);
 
     // the last part chunk of the posting
     if (docCnt % 128 != 0)
       lexchkbuf<<docid<<" "<<listItr-startOffset<<" ";
-    if (proc == 100000)
-      cout<<proc++<<" "<<word<<" "<<docCnt<<endl;
+ 
     lexbuf<<docCnt<<" "; // Ft
     docCnt = 0;
     // posting offset and chunk record offset

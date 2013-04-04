@@ -9,5 +9,5 @@
 // ls urltable/* |sort -k2 -t/ -n
 #define START_DOCID 0
 #define START_TEMP_NUM 0
-#define START_INDEX "nz2_merged/0_index"
+#define START_INDEX "NZ/data/0_index"
 #endif    

@@ -19,13 +19,15 @@ public:
     int ls = lhs.find_first_of("(");
     int le = lhs.find_first_of(" ", ls + 1); //( docid freq .. .. or ls = -1
     string ldid, rdid;
-    if( ls != -1 && le != -1) ldid = lhs.substr(ls, le);
+    if( ls != -1 && le != -1) ldid = lhs.substr(ls+1, le);
     
     int rs = rhs.find_first_of("(");
     int re = rhs.find_first_of(" ", re + 1);
-    if( re != -1 && rs != -1) rdid = rhs.substr(rs, re);
+    if( re != -1 && rs != -1) rdid = rhs.substr(rs+1, re);
+    //cout<<ldid<<","<<rdid<<":"<<atoi(ldid.c_str()) <<", "<<atoi(rdid.c_str());
+    //cout<<" :"<<(atoi(ldid.c_str()) < atoi(rdid.c_str()))<<endl;
 
-    return atoi(ldid.c_str()) < atoi(rdid.c_str());    
+    return atoi(ldid.c_str()) > atoi(rdid.c_str());    
   }
 };
 class Node{
@@ -44,9 +46,11 @@ public:
   string to_string(){
     string wholePostings;
     while(!posting.empty()){
+      //cout<<posting.top().substr(0, 20)<<endl;
       wholePostings.append(posting.top());
       posting.pop();
     }
+    //cout<<"+++++++++++++++++++++++++++++++++++"<<endl;
     return wholePostings;
   }
 };
@@ -62,8 +66,9 @@ int pipefd[2];
 long default_content_size =  100000000; // about 100 MiB
 
 int main(int argc, char **argv){
-  if(argc != 4){
-    cout<<"format: merger srcpath tmpath destpath"<<endl;
+
+  if(argc != 5){
+    cout<<"format: merger srcpath tmpath destpath [1|2]"<<endl;
     return 1;
   }
   
@@ -74,30 +79,33 @@ int main(int argc, char **argv){
   pthread_t tid;
   string fnames;
   clock_t beg = clock();
-
-  tmpath = string(argv[2]);
-  pthread_create(&tid, NULL, saveThread, NULL);
-  fnames = get_fnames(argv[1]);
-  if(fnames.empty()){
-    cerr<<argv[1]<<" empty"<<endl;
-    exit(1);
+  
+  if(!strcmp(argv[4], "1")){
+    tmpath = string(argv[2]);
+    pthread_create(&tid, NULL, saveThread, NULL);
+    fnames = get_fnames(argv[1]);
+    if(fnames.empty()){
+      cerr<<argv[1]<<" empty"<<endl;
+      exit(1);
+    }
+    default_content_size = 524288000;
+    merge_and_sort(fnames, 
+                   filecount(fnames) > 10 ? 10:filecount(fnames));
+    pthread_join(tid, NULL);
   }
-  default_content_size = 524288000;
-  merge_and_sort(fnames, 
-                 filecount(fnames) > 10 ? 10:filecount(fnames));
-  pthread_join(tid, NULL);
-
-  tmpath = string(argv[3]);
-  pthread_create(&tid, NULL, saveThread, NULL);
-  fnames = get_fnames(argv[2]);
-  if(fnames.empty()){
-    cerr<<argv[2]<<" empty"<<endl;
-    exit(1);
+  else if(!strcmp(argv[4], "2")){
+    tmpath = string(argv[3]);
+    pthread_create(&tid, NULL, saveThread, NULL);
+    fnames = get_fnames(argv[2]);
+    if(fnames.empty()){
+      cerr<<argv[2]<<" empty"<<endl;
+      exit(1);
+    }
+    default_content_size = 21474836480; // 20G. Ensure they are saved in one file
+    merge_and_sort(fnames, filecount(fnames));
+    pthread_join(tid, NULL);
   }
-  default_content_size = 21474836480; // 20G. Ensure they are saved in one file
-  merge_and_sort(fnames, filecount(fnames));
-  pthread_join(tid, NULL);
-
+  else cout<< "[1|2] first or second pass"<<endl;
   cout<<"Total time: "<<(double)(clock() - beg)/CLOCKS_PER_SEC<<endl;
   return 0;
 
@@ -168,13 +176,14 @@ void merge_and_sort(string fnames, unsigned int bufnum){
       getline(gzin[i], posting);
       //cout<<posting<<endl;
       r = map_append(frontier, posting, i);
+      posting.clear();
     }while(!r);
   }
   
   bool nsendtag = false; 
   while(1){
     if(frontier.size() == 0){
-      cout<<"finish merging, exit"<<endl;
+      cout<<"finish merging, tell saveThread to exit"<<endl;
       write(pipefd[1],"99999999999999",14);
       break;
     }
@@ -251,8 +260,8 @@ void *saveThread(void *t){
   ogzstream gzout;
   gzout.open(filename);
   if ( ! gzout.good()) {
-    std::cerr << "saveThread: Opening file `" << filename<<"' failed "<<" "<<strerror(errno) <<endl;
-    exit(3);
+    std::cerr << "saveThread: Opening file `" << filename<<"' failed"<<endl;
+    exit(1);
   }
   
   while(1){
@@ -268,18 +277,17 @@ void *saveThread(void *t){
       gzout.close();
       break;
     }
-    
-    cout<<"told read size: "<<atol(readlen)<<endl;   
-    content = (char*)malloc(atol(readlen)+1);
+    long nreadlen = atol(readlen);
+    cout<<"told read size: "<<nreadlen<<endl;   
+    content = (char*)malloc(nreadlen + 1);
     long readsize = 0;
     r = 0;
-    while(readsize < atol(readlen)){
-      r = read(pipefd[0], content + readsize, atol(readlen));
+    while(readsize < nreadlen){
+      r = read(pipefd[0], content + readsize, nreadlen - readsize);
       if (r == -1) {
         perror("read");
-        //        delete content;
         free(content);
-        exit(3);
+        exit(1);
       }
       readsize += r;
     }
@@ -313,13 +321,13 @@ void *saveThread(void *t){
 bool map_append(map<string, Node> &frontier, string posting, int sid){
   // split the new posting and if the posting exists, merge them, or insert it into the map.
   int split = posting.find_first_of(" ");
-  //cout<<"map_append:"<<posting<<endl;
   if(split == -1){
-    cerr<<"map_append: no word found"<<endl;
+    cerr<<"map_append: no word found"<<posting.substr(0,64)<<endl;
     return false;
   }
   string word  = posting.substr(0, split);
   string leftps = posting.substr(split+1); // check if it's valid
+
   map<string, Node>::iterator itr = frontier.find(word);
   if(itr == frontier.end()){
     frontier.insert(pair<string, Node>(word, Node(sid, leftps)));

@@ -21,9 +21,11 @@ void Record::insert(unsigned int newDocid, unsigned char cch, int pos){
   else{
     // if a word appears 255 times in a page, I get two conclusions: 
     // the word is not important; the author is bored. 
-    if(freq == 255) 
+    if(this->freq == 65535){ 
+      cerr<<"lex reaches freq's upper bound"<<endl;
       return; 
-    freq = 1 + freq - '\0';
+    }
+    freq += 1;
     int tpos = pos; // to save pos as the relative position
     pos = pos - lastpos;
     pos = pos > 8191 ? 8191:pos;  // keep pos not over 2^13-1 = 8191
@@ -32,16 +34,6 @@ void Record::insert(unsigned int newDocid, unsigned char cch, int pos){
     sprintf(str," %c %d", cch, pos);
     pagehits.append(str);
     lastpos = tpos;
-// #else
-//     short hit = 0; //[chID:3 | pos:13] 
-//     char chit[3]="";
-//     short chID = convert(cch);
-//     hit = (chID<<13) | pos;
-//     chit[0] = (hit>>8) & ~(~0<<8); // save the high 8 bits
-//     chit[1] = hit & ~(~0<<8);
-//     chit[2] = 0;
-//     pagehits.append(chit);
-// #endif
 
   }
 }
@@ -61,15 +53,26 @@ short Record::convert(unsigned char cch){
 }
 string Record::recordToString(){
   //splice the record properties into a string and merge pagehits into hits
-
+  stringstream ss;
+  ss<<pagehits;
+  string trash;
+  unsigned counter=0;
+  while(ss>>trash) ++counter;
+  if(counter != ((unsigned int)this->freq)*2){
+    cerr<<"C|P splice error "<<freq<<":"<<counter<<endl;
+    return string();
+  }
+  
   char num[20];
-  sprintf(num," (%d %d ",this->docid,(int)freq);
+  sprintf(num,"%d %d",this->docid, this->freq);
+  hits.append("(");
   hits.append(num);
   hits.append(pagehits);
   hits.append(")");
-
+  
   pagehits.clear();
   freq = 0;
   lastpos = 0;
   return hits;
+  
 }

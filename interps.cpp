@@ -14,15 +14,39 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
 void nz_op(char* path);
 void nz2_op();
 string get_fnames(char* path);
+void compress(char *path);
 int main (int argc, char * argv[]){
   if(argc != 2){
     cout<<"format: interps datapath"<<endl;
     exit(1);
   }
-  clock_t beg = clock();
+  clock_t beg = clock();  
   nz_op(argv[1]);
+  // compress(argv[1]);
   cout<<"total time: "<<(double)(clock() - beg)/CLOCKS_PER_SEC<<endl;
   return 0;
+}
+void compress(char *path){
+  stringstream fnames(get_fnames(path));
+  string name;
+  ogzstream outfile((string(path)+"/wholeUrls").c_str());
+  while(fnames>>name){
+    if(!name.empty()){
+      cout<<name<<endl;
+      gzFile *urlFile = (void **)gzopen(name.c_str(), "r");
+      if (!urlFile) {
+        fprintf (stderr, "gzopen of '%s' failed: %s.\n", name.c_str(),
+                 strerror (errno));
+        continue;
+      }
+      char *urls = memAlloc(urlFile, 409600, true);
+      if(urls != NULL)
+        outfile<<urls<<flush;
+      gzclose(urlFile);
+      free(urls);
+    }
+  }
+  outfile.close();
 }
 string get_fnames(char* path){
   string cmd("ls ");
@@ -30,7 +54,7 @@ string get_fnames(char* path){
 
   // sort numerically (-n) on the third field (-k3) using 'p' 
   // as the field separator (-tp).
-  cmd.append("/*_* | sort -k3 -t/ -n");
+  cmd.append("/*_* | sort -k3 -t/ -n"); 
   FILE *handle = popen(cmd.c_str(), "r");
   if(handle == NULL){
     cerr<<"popen error"<<endl;
@@ -118,23 +142,16 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
       else ss >> trash;
     }
 
-    int docID = UrlTable::getInstance()->insert(url, dataFName, offset);
-    if (docID == -1){
-      cerr<<"urltable insert error"<<endl;
-      break;
-    }
     char *pageBuf = memAlloc(cData, offset, false);
+    unsigned lexCnt = 0;
     if(pageBuf != NULL){
         char *lexbuf = (char*)malloc(2*offset + 1);
-        int ret = parser(const_cast<char*>(url.c_str()),
-                         pageBuf, lexbuf, 2*offset + 1, offset);
-        if (ret > 0) findex.insertParsingRes(docID, lexbuf);
-        else {
-          if (ret == 0)
-            errlink.append(url+" return code != 200\n");
-          else
-            errlink.append(url+" parse error\n");
-        }
+        memset(lexbuf, 0, 2*offset + 1);
+        parser(const_cast<char*>(url.c_str()),
+               pageBuf, lexbuf, 2*offset + 1, offset);
+        lexbuf[2*offset] = 0;
+        lexCnt = findex.insertParsingRes(UrlTable::getInstance()->getDocid(),
+                                                  lexbuf);  
         free(pageBuf);
         free(lexbuf);
         pageBuf = lexbuf = NULL;
@@ -143,9 +160,8 @@ void event(char *indexFName, char * dataFName,FwdIndex &findex, string& errlink)
       cout<<endl<<url+" memAlloc error\n";
       errlink.append(url+" memAlloc error\n");
     }
-
+    UrlTable::getInstance()->insert(url, dataFName, offset, lexCnt);
   }
-
   free(indexBuffer);
   gzclose(cData);
   gzclose(cIndex);

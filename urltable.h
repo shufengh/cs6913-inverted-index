@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include "config.h"
+#include "gzstream.h"
 using namespace std;
 
 /*
@@ -23,9 +24,9 @@ class UrlTable{
  public:
  ~UrlTable();
  static UrlTable* getInstance();
- int insert(string url, string filepath, int offset); //return docID
+ int insert(string url, string filepath, int offset, unsigned lexCnt); //return docID
  bool saveTable();
-
+ unsigned int getDocid();
 };
 
 #endif //__URLTABLE_H__
