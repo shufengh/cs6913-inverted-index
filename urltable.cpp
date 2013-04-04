@@ -11,7 +11,7 @@ UrlTable::~UrlTable(){
   this->saveTable();
 }
 bool UrlTable::saveTable(){
-  cout<<"saveTable"<<endl;
+  cout<<"saveTable, next docid: "<<getDocid()<<endl;
   clock_t s = clock();
   gzFile *outfile =  (void **)gzopen("urltable/urltable","a");
   if (!outfile) {

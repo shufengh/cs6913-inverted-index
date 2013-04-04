@@ -79,6 +79,7 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
 
   while(!gzin.eof()){
     getline(gzin, line);
+    if(!gzin.good()) continue;
     string word = line.substr(0, line.find_first_of(" "));
     lexbuf<<line.substr(0, line.find_first_of(" "))<<" ";
     unsigned int startOffset = listItr;
@@ -151,38 +152,35 @@ unsigned int convert(string record, vector<unsigned char> &listbuf,
   stringstream ss(record);
   // record format: [docid freq context pos context pos .. ..]
   string str; // get chars from stream first
-  unsigned char ch; // freq or context
-  unsigned int num, pos; // docid 
+  unsigned int did, pos; // docid 
   
   ss>>str;
-  num = atoi(str.c_str());
-  if(str.size() > 1 && num == 0){
-    cout<<"formatter: docid converting error "<<record<<endl;
+  did = atoi(str.c_str());
+  if(str.size() > 1 && did == 0){
+    cout<<"formatter: docid converting error "<<str<<":"<<record<<endl;
     return -1;
   }
-  vb_encode(num, listbuf, listItr); // encode docid
+  vb_encode(did, listbuf, listItr); // encode docid
 
   ss>>str;
   int freq = atoi(str.c_str());
-  if(str.size() > 1 && num == 0){
-    cout<<"formatter: freq converting error "<<record<<endl;
+  if(str.size() > 1 && freq == 0){
+    cout<<"formatter: freq converting error "<<freq<<":"<<record<<endl;
     return -1;
   }
   vb_encode(freq, listbuf, listItr);
   
   string context;
-  while(ss>context>>str){ // context and position
-
+  while(ss>>context>>str){ // context and position
+    
     pos = atoi(str.c_str());
     if(str.size() > 1 && pos == 0){
       cout<<"formatter: pos converting error "<<str<<","<<record<<endl;
       return -1;
     }
-    // a test to see if vbytes is better than the byte alignment
-    pairTo2Bts(pos, ch, listbuf, listItr); 
-    //vb_encode(Record::convert(ch)<<13 + pos, listbuf, listItr);
+    pairTo2Bts(pos, context[0], listbuf, listItr); 
   }
-  return num; //return docid
+  return did; 
 }
 void vb_encode(unsigned int docid, vector<unsigned char>&listbuf, 
                unsigned int &listItr){

@@ -54,7 +54,7 @@ void FwdIndex::saveIntoDisk(){
   for(itr = FwdIndexBarrel.begin(); itr!=FwdIndexBarrel.end();++itr){
     string tmp = itr->second.recordToString();
     if( tmp.length() != 0)
-      strchunk.append(itr->first + tmp + "\n");
+      strchunk.append(itr->first + " " + tmp + "\n");
   }
   
 

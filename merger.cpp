@@ -45,10 +45,16 @@ public:
   }
   string to_string(){
     string wholePostings;
+    string last;
     while(!posting.empty()){
       //cout<<posting.top().substr(0, 20)<<endl;
-      wholePostings.append(posting.top());
-      posting.pop();
+      string cur = posting.top();
+      if(last != cur){
+        wholePostings.append(cur);
+        posting.pop();
+        last = cur;
+      }
+      else posting.pop();
     }
     //cout<<"+++++++++++++++++++++++++++++++++++"<<endl;
     return wholePostings;
@@ -146,7 +152,7 @@ void merge_and_sort(string fnames, unsigned int bufnum){
   stringstream ns(fnames);
   map<string, Node > frontier; 
   string pipeStr; // save merged first 20MiB postings
-  string fname, posting;
+  string fname;
   for(unsigned i = 0; i< bufnum; ++i){
     ns>>fname;
     if(fname.empty()) continue;
@@ -173,10 +179,10 @@ void merge_and_sort(string fnames, unsigned int bufnum){
           break;
         }        
       }
-      getline(gzin[i], posting);
-      //cout<<posting<<endl;
-      r = map_append(frontier, posting, i);
-      posting.clear();
+      string pline; // a line of posting: posting for a lexicon
+      getline(gzin[i], pline);
+      if(gzin[i].good())
+        r = map_append(frontier, pline, i);
     }while(!r);
   }
   
