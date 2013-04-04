@@ -77,14 +77,13 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
   unsigned int listItr = 0;
   stringstream lexchkbuf; // save the last docid in a chunk and current size
 
-  long long proc = 0; // to record the process stage
   while(!gzin.eof()){
     getline(gzin, line);
     string word = line.substr(0, line.find_first_of(" "));
     lexbuf<<line.substr(0, line.find_first_of(" "))<<" ";
     unsigned int startOffset = listItr;
     int startChkOffset = lexchkbuf.tellp();
-    unsigned int docid = 0;
+    long docid = 0;
     unsigned int nextStart = 0; 
     do {
       start = line.find_first_of("(", nextStart);
@@ -92,6 +91,7 @@ void format(string fname, ogzstream& gzlex, ofstream &outfmd, ofstream &lexchunk
       if( start != -1 && end != -1){
         // start+1, end-start-1 to omit '(' and ')'
         docid = convert(line.substr(start+1, end-start-1), listbuf, listItr);
+        if(docid == -1) break;
         nextStart = end + 1;
         start = end = -1;
       }
@@ -160,14 +160,18 @@ unsigned int convert(string record, vector<unsigned char> &listbuf,
     cout<<"formatter: docid converting error "<<record<<endl;
     return -1;
   }
-  vb_encode(num, listbuf, listItr);
+  vb_encode(num, listbuf, listItr); // encode docid
+
   ss>>str;
-  //ch = str[0];
-  listbuf[listItr++] = atoi(str.c_str());
-  while(!ss.eof()){
-    ss>>str;
-    ch = str[0];
-    ss>>str;
+  int freq = atoi(str.c_str());
+  if(str.size() > 1 && num == 0){
+    cout<<"formatter: freq converting error "<<record<<endl;
+    return -1;
+  }
+  vb_encode(freq, listbuf, listItr);
+  
+  string context;
+  while(ss>context>>str){ // context and position
 
     pos = atoi(str.c_str());
     if(str.size() > 1 && pos == 0){
